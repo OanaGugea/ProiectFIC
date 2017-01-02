@@ -324,6 +324,7 @@ int main(int argc, char* argv[])
         //sprintf(buffer,"fslsrs");
 	      verificare();
 	      strcpy(buffer_global, buffer);
+	      //sprintf(buffer, buffer_global);
         printf("buffer: %s\n",buffer);
         n=write(sockfd,buffer,strlen(buffer));
         if(n<0)
