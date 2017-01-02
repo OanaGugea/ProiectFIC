@@ -247,8 +247,25 @@ int socket()
     printf("ER connecting");
   printf("Socketing\n");
   return 0;
-  
 }
+
+char buffer_global[256];
+void verificare(){
+	strcpy(buffer_global, "");
+	if(x_R < x_B){
+		if(y_R < y_B)
+			strcpy(buffer_global, "rsbs");
+		if(y_R > y_B)
+			strcpy(buffer_global, "rsfs");
+	}
+	if(x_R > x_B){
+		if(y_R < y_B)
+			strcpy(buffer_global, "lsbs");
+		if(y_R > y_B)
+			strcpy(buffer_global, "lsfs");
+	}
+}
+
 int main(int argc, char* argv[])
 {
 
@@ -304,7 +321,9 @@ int main(int argc, char* argv[])
 			trackFilteredObject(x, y, threshold, cameraFeed);
       if(x!=x_R){
         bzero(buffer,256);
-        sprintf(buffer,"fslsrs");
+        //sprintf(buffer,"fslsrs");
+	      verificare();
+	      strcpy(buffer_global, buffer);
         printf("buffer: %s\n",buffer);
         n=write(sockfd,buffer,strlen(buffer));
         if(n<0)
