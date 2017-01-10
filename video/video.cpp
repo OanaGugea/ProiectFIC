@@ -44,14 +44,20 @@
 #define V_MIN_Y 142
 #define V_MAX_Y 256
 
+#define H_MIN_BLACK 0
+#define H_MAX_BLACK 256
+#define S_MIN_BLACK 0
+#define S_MAX_BLACK 256
+#define V_MIN_BLACK 0
+#define V_MAX_BLACK 256
+
 using namespace std;
 using namespace cv;
 //initial min and max HSV filter values.
 //these will be changed using trackbars
-int x_R;
-int y_R;
-int x_B;
-int y_B;
+int x_R, y_R;
+int x_B, y_B;
+int x_BLACK, y_BLACK;
 int H_MIN = 0;
 int H_MAX = 256;
 int S_MIN = 0;
@@ -72,7 +78,6 @@ const std::string windowName1 = "HSV Image";
 const std::string windowName2 = "Thresholded Image";
 const std::string windowName3 = "After Morphological Operations";
 const std::string trackbarWindowName = "Trackbars";
-
 
 void on_mouse(int e, int x, int y, int d, void *ptr)
 {
@@ -122,6 +127,7 @@ void createTrackbars() {
 
 
 }
+
 void drawObject(int x, int y, Mat &frame) {
 
 	//use some of the openCV drawing functions to draw crosshairs
@@ -149,6 +155,7 @@ void drawObject(int x, int y, Mat &frame) {
 	//cout << "x,y: " << x << ", " << y;
 
 }
+
 void morphOps(Mat &thresh) {
 
 	//create structuring element that will be used to "dilate" and "erode" image.
@@ -168,6 +175,7 @@ void morphOps(Mat &thresh) {
 
 
 }
+
 void trackFilteredObject(int &x, int &y, Mat threshold, Mat &cameraFeed) {
 
 	Mat temp;
@@ -217,12 +225,12 @@ void trackFilteredObject(int &x, int &y, Mat threshold, Mat &cameraFeed) {
 		else putText(cameraFeed, "TOO MUCH NOISE! ADJUST FILTER", Point(0, 50), 1, 2, Scalar(0, 0, 255), 2);
 	}
 }
+
 int sockfd, portno, n;
 struct sockaddr_in serv_addr;
 struct hostent *server;
 
-int socket()
-{  
+int socket() {  
   char hostname[]="193.226.12.217";
   char port[]="20231";
   char buffer[256];
@@ -250,7 +258,10 @@ int socket()
 }
 
 char buffer_global[256];
+
 void verificare(){
+	//verific diferenta de pozitie intre mine si adversar
+	//eu -> rosu --- adversar -> albastru
 	strcpy(buffer_global, "");
 	if(x_R < x_B){
 		if(y_R < y_B)
@@ -266,16 +277,24 @@ void verificare(){
 	}
 }
 
-int main(int argc, char* argv[])
-{
+int raza=45;
 
+int miscare(){
+	//ma asigur ca urmatoarea mutare nu ma va da jos din ring
+	if((x_R < (x_BLACK + raza)) && (x_R > (x_BLACK - raza)))
+		if((y_R < (y_BLACK + raza)) && (y_R > (y_BLACK - raza)))
+			return 1;
+	return 0;
+}
+
+int main(int argc, char* argv[]){
 	//some boolean variables for different functionality within this
 	//program
 	bool trackObjects = true;
 	bool useMorphOps = true;
-  char buffer[256];
+	char buffer[256];
   
-  socket();
+	socket();
 	Point p;
 	//Matrix to store each frame of the webcam feed
 	Mat cameraFeed;
@@ -296,19 +315,25 @@ int main(int argc, char* argv[])
 	capture.set(CV_CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
 	//start an infinite loop where webcam feed is copied to cameraFeed matrix
 	//all of our operations will be performed within this loop
-
-
-
+	
+	//identificam centrul ringului
+	inRange(HSV, Scalar(H_MIN_BLACK, S_MIN_BLACK, V_MIN_BLACK), Scalar(H_MAX_BLACK, S_MAX_BLACK, V_MAX_BLACK), threshold);
+		if (useMorphOps)
+			morphOps(threshold);
+		if (trackObjects)
+			trackFilteredObject(x, y, threshold, cameraFeed);
+    x_BLACK=x;
+    y_BLACK=y;
 	
 	while (1) {
-
-
 		//store image to matrix
 		capture.read(cameraFeed);
 		//convert frame from BGR to HSV colorspace
 		cvtColor(cameraFeed, HSV, COLOR_BGR2HSV);
 		//filter HSV image between values and store filtered image to
 		//threshold matrix
+		
+		//identificam obiectul rosu - eu
 		inRange(HSV, Scalar(H_MIN_R, S_MIN_R, V_MIN_R), Scalar(H_MAX_R, S_MAX_R, V_MAX_R), threshold);
 		//perform morphological operations on thresholded image to eliminate noise
 		//and emphasize the filtered object(s)
@@ -319,21 +344,25 @@ int main(int argc, char* argv[])
 		//filtered object
 		if (trackObjects)
 			trackFilteredObject(x, y, threshold, cameraFeed);
-      if(x!=x_R){
-        bzero(buffer,256);
-        //sprintf(buffer,"fslsrs");
-	      verificare();
-	      strcpy(buffer_global, buffer);
-	      //sprintf(buffer, buffer_global);
-        printf("buffer: %s\n",buffer);
-        n=write(sockfd,buffer,strlen(buffer));
-        if(n<0)
-          printf("writing to socket");
-      }
-      x_R=x;
-      y_R=y;    
+		if(x!=x_R){
+			bzero(buffer,256);
+			//sprintf(buffer,"fslsrs");
+			verificare();
+			if(miscare() == 1)
+				strcpy(buffer_global, buffer);
+			else
+				printf("Atentie! Foarte aproape de margine!\n");
+			//sprintf(buffer, buffer_global);
+			printf("buffer: %s\n",buffer);
+			n=write(sockfd,buffer,strlen(buffer));
+			if(n<0)
+			  printf("writing to socket");
+		}
+		x_R=x;
+		y_R=y;    
       
-   inRange(HSV, Scalar(H_MIN_B, S_MIN_B, V_MIN_B), Scalar(H_MAX_B, S_MAX_B, V_MAX_B), threshold);
+		//identificam obiectul albastru - adversarul
+		inRange(HSV, Scalar(H_MIN_B, S_MIN_B, V_MIN_B), Scalar(H_MAX_B, S_MAX_B, V_MAX_B), threshold);
 		//perform morphological operations on thresholded image to eliminate noise
 		//and emphasize the filtered object(s)
 		if (useMorphOps)
@@ -343,8 +372,8 @@ int main(int argc, char* argv[])
 		//filtered object
 		if (trackObjects)
 			trackFilteredObject(x, y, threshold, cameraFeed);
-    x_B=x;
-    y_B=y;
+		x_B=x;
+		y_B=y;
 		//show frames
 		imshow(windowName2, threshold);
 		imshow(windowName, cameraFeed);
@@ -354,8 +383,5 @@ int main(int argc, char* argv[])
 		//image will not appear without this waitKey() command
 		waitKey(30);
 	}
-
-
 	return 0;
 }
-
