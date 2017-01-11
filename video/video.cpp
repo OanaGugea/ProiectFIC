@@ -277,7 +277,7 @@ void verificare(){
 	}
 }
 
-int raza=45;
+int raza=35;
 
 int miscare(){
 	//ma asigur ca urmatoarea mutare nu ma va da jos din ring
