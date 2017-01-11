@@ -5,65 +5,54 @@
 #include "opencv2/highgui/highgui.hpp"
 //#include <opencv2\cv.h>
 #include "opencv2/opencv.hpp"
-#include<sys/socket.h>
-#include<netinet/in.h>
-#include<netdb.h>
-#include<sys/types.h>
-#include<stdio.h>
-#include<stdlib.h>
-#include<string.h>
-#include<unistd.h>
-#include <stdexcept>  
-#include <limits> 
 
-#define H_MIN_G 63
-#define H_MAX_G 74
-#define S_MIN_G 0
-#define S_MAX_G 256
-#define V_MIN_G 142
-#define V_MAX_G 256
-
-#define H_MIN_B 86
-#define H_MAX_B 104
-#define S_MIN_B 63
-#define S_MAX_B 256
-#define V_MIN_B 0
-#define V_MAX_B 256
-
-#define H_MIN_R 0
-#define H_MAX_R 8
-#define S_MIN_R 0
-#define S_MAX_R 256
-#define V_MIN_R 130
-#define V_MAX_R 256
-
-#define H_MIN_Y 16
-#define H_MAX_Y 63
-#define S_MIN_Y 0
-#define S_MAX_Y 256
-#define V_MIN_Y 142
-#define V_MAX_Y 256
-
-#define H_MIN_BLACK 0
-#define H_MAX_BLACK 256
-#define S_MIN_BLACK 0
-#define S_MAX_BLACK 256
-#define V_MIN_BLACK 0
-#define V_MAX_BLACK 256
+//Network related includes:
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <netinet/in.h>
 
 using namespace std;
 using namespace cv;
 //initial min and max HSV filter values.
 //these will be changed using trackbars
-int x_R, y_R;
-int x_B, y_B;
-int x_BLACK, y_BLACK;
 int H_MIN = 0;
 int H_MAX = 256;
 int S_MIN = 0;
 int S_MAX = 256;
 int V_MIN = 0;
 int V_MAX = 256;
+
+#define B_H_MIN 88
+#define B_H_MAX 256
+#define B_S_MIN 81
+#define B_S_MAX 256
+#define B_V_MIN 42
+#define B_V_MAX 256
+
+
+#define R_H_MIN 0
+#define R_H_MAX 43
+#define R_S_MIN 130
+#define R_S_MAX 244
+#define R_V_MIN 63
+#define R_V_MAX 256
+
+
+#define G_H_MIN 47
+#define G_H_MAX 256
+#define G_S_MIN 34
+#define G_S_MAX 256
+#define G_V_MIN 124
+#define G_V_MAX 230
+
+
+//Target host details:
+#define PORT 20231
+#define HOST "193.226.12.217"
+
 //default capture width and height
 const int FRAME_WIDTH = 640;
 const int FRAME_HEIGHT = 480;
@@ -78,6 +67,7 @@ const std::string windowName1 = "HSV Image";
 const std::string windowName2 = "Thresholded Image";
 const std::string windowName3 = "After Morphological Operations";
 const std::string trackbarWindowName = "Trackbars";
+
 
 void on_mouse(int e, int x, int y, int d, void *ptr)
 {
@@ -107,12 +97,12 @@ void createTrackbars() {
 	namedWindow(trackbarWindowName, 0);
 	//create memory to store trackbar name on window
 	char TrackbarName[50];
-	//sprintf(TrackbarName, "H_MIN", H_MIN);
-	//sprintf(TrackbarName, "H_MAX", H_MAX);
-	//sprintf(TrackbarName, "S_MIN", S_MIN);
-	//sprintf(TrackbarName, "S_MAX", S_MAX);
-	//sprintf(TrackbarName, "V_MIN", V_MIN);
-	//sprintf(TrackbarName, "V_MAX", V_MAX);
+	/*sprintf(TrackbarName, "H_MIN", H_MIN);
+	sprintf(TrackbarName, "H_MAX", H_MAX);
+	sprintf(TrackbarName, "S_MIN", S_MIN);
+	sprintf(TrackbarName, "S_MAX", S_MAX);
+	sprintf(TrackbarName, "V_MIN", V_MIN);
+	sprintf(TrackbarName, "V_MAX", V_MAX);*/
 	//create trackbars and insert them into window
 	//3 parameters are: the address of the variable that is changing when the trackbar is moved(eg.H_LOW),
 	//the max value the trackbar can move (eg. H_HIGH),
@@ -127,7 +117,6 @@ void createTrackbars() {
 
 
 }
-
 void drawObject(int x, int y, Mat &frame) {
 
 	//use some of the openCV drawing functions to draw crosshairs
@@ -155,7 +144,6 @@ void drawObject(int x, int y, Mat &frame) {
 	//cout << "x,y: " << x << ", " << y;
 
 }
-
 void morphOps(Mat &thresh) {
 
 	//create structuring element that will be used to "dilate" and "erode" image.
@@ -175,7 +163,6 @@ void morphOps(Mat &thresh) {
 
 
 }
-
 void trackFilteredObject(int &x, int &y, Mat threshold, Mat &cameraFeed) {
 
 	Mat temp;
@@ -225,76 +212,14 @@ void trackFilteredObject(int &x, int &y, Mat threshold, Mat &cameraFeed) {
 		else putText(cameraFeed, "TOO MUCH NOISE! ADJUST FILTER", Point(0, 50), 1, 2, Scalar(0, 0, 255), 2);
 	}
 }
+int main(int argc, char* argv[])
+{
 
-int sockfd, portno, n;
-struct sockaddr_in serv_addr;
-struct hostent *server;
-
-int socket() {  
-  char hostname[]="193.226.12.217";
-  char port[]="20231";
-  char buffer[256];
-  
-  portno=atoi(port);
-  sockfd=socket(AF_INET,SOCK_STREAM,0);
-  
-  if(sockfd < 0)
-    printf("ER socket");
-    
-  server=gethostbyname(hostname);
-  
-  if(server == NULL){  
-      fprintf(stderr,"not such host");
-      exit(0);
-    }
-  bzero((char*) &serv_addr, sizeof(serv_addr));
-  serv_addr.sin_family=AF_INET;
-  bcopy((char*) server->h_addr, (char*) &serv_addr.sin_addr.s_addr, server->h_length);
-  serv_addr.sin_port=htons(portno);
-  if(connect(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
-    printf("ER connecting");
-  printf("Socketing\n");
-  return 0;
-}
-
-char buffer_global[256];
-
-void verificare(){
-	//verific diferenta de pozitie intre mine si adversar
-	//eu -> rosu --- adversar -> albastru
-	strcpy(buffer_global, "");
-	if(x_R < x_B){
-		if(y_R < y_B)
-			strcpy(buffer_global, "rsbs");
-		if(y_R > y_B)
-			strcpy(buffer_global, "rsfs");
-	}
-	if(x_R > x_B){
-		if(y_R < y_B)
-			strcpy(buffer_global, "lsbs");
-		if(y_R > y_B)
-			strcpy(buffer_global, "lsfs");
-	}
-}
-
-int raza=35;
-
-int miscare(){
-	//ma asigur ca urmatoarea mutare nu ma va da jos din ring
-	if((x_R < (x_BLACK + raza)) && (x_R > (x_BLACK - raza)))
-		if((y_R < (y_BLACK + raza)) && (y_R > (y_BLACK - raza)))
-			return 1;
-	return 0;
-}
-
-int main(int argc, char* argv[]){
 	//some boolean variables for different functionality within this
 	//program
 	bool trackObjects = true;
 	bool useMorphOps = true;
-	char buffer[256];
-  
-	socket();
+
 	Point p;
 	//Matrix to store each frame of the webcam feed
 	Mat cameraFeed;
@@ -302,86 +227,136 @@ int main(int argc, char* argv[]){
 	Mat HSV;
 	//matrix storage for binary threshold image
 	Mat threshold;
+  
+  Mat thresholdB;
+  Mat thresholdG;
+  Mat thresholdR;
+  
 	//x and y values for the location of the object
 	int x = 0, y = 0;
+ 
+  int x1 = 0, y1 = 0;
+  int x2 = 0, y2 = 0;
+  int x3 = 0, y3 = 0;
 	//create slider bars for HSV filtering
 	createTrackbars();
 	//video capture object to acquire webcam feed
 	VideoCapture capture;
 	//open capture object at location zero (default location for webcam)
-	capture.open("rtmp://172.16.254.63/live/live");
+	//capture.open(0);
+  capture.open("rtmp://172.16.254.63/live/live");
 	//set height and width of capture frame
 	capture.set(CV_CAP_PROP_FRAME_WIDTH, FRAME_WIDTH);
 	capture.set(CV_CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT);
 	//start an infinite loop where webcam feed is copied to cameraFeed matrix
 	//all of our operations will be performed within this loop
-	
-	//identificam centrul ringului
-	inRange(HSV, Scalar(H_MIN_BLACK, S_MIN_BLACK, V_MIN_BLACK), Scalar(H_MAX_BLACK, S_MAX_BLACK, V_MAX_BLACK), threshold);
-		if (useMorphOps)
-			morphOps(threshold);
-		if (trackObjects)
-			trackFilteredObject(x, y, threshold, cameraFeed);
-    x_BLACK=x;
-    y_BLACK=y;
-	
-	while (1) {
+ 
+  /* struct sockaddr_in dest_addr;
+   int sockfd;
+   sockfd = socket(AF_INET, SOCK_STREAM, 0);
+  if(socket<0)
+  {
+    cout<<("eroare");
+    exit(1);
+  }
+	 dest_addr.sin_family=AF_INET;
+   dest_addr.sin_port=htons(20231);
+   dest_addr.sin_port=htons(20232);
+   dest_addr.sin_addr.s_addr=inet_addr("193.226.12.217");
+   dest_addr.sin_zero[8]='\0';
+   
+   if(connect(sockfd,(struct sockaddr*)&dest_addr,sizeof(struct sockaddr))<0)
+   if(socket<0)
+  {
+    cout<<("eroare");
+    exit(1);
+  }
+   char msg[200];
+   strcpy(msg,"l");
+   int w = write(sockfd,msg,strlen(msg));
+   */
+   
+    int sockfd, portno, n;
+    struct sockaddr_in serv_addr;
+    struct hostent *server;
+
+    char buffer[256];
+    portno = 20231;
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) 
+       // error("ERROR opening socket");
+      { cout<<("error");
+      exit(1);}
+    server = gethostbyname("193.226.12.217");
+    if (server == NULL) {
+        fprintf(stderr,"ERROR, no such host\n");
+        exit(0);
+    }
+    bzero((char *) &serv_addr, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr,(char *)&serv_addr.sin_addr.s_addr,server->h_length);
+    serv_addr.sin_port = htons(portno);
+    if (connect(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) 
+    { cout<<("error connecting");
+      exit(1);}
+        
+    strcpy(buffer,"r\ns");
+    n = write(sockfd, buffer, strlen(buffer));
+    if (n < 0) 
+          { cout<<("error write");
+      exit(1);}
+   while (1) {
+
+
 		//store image to matrix
 		capture.read(cameraFeed);
 		//convert frame from BGR to HSV colorspace
-		cvtColor(cameraFeed, HSV, COLOR_BGR2HSV);
-		//filter HSV image between values and store filtered image to
-		//threshold matrix
-		
-		//identificam obiectul rosu - eu
-		inRange(HSV, Scalar(H_MIN_R, S_MIN_R, V_MIN_R), Scalar(H_MAX_R, S_MAX_R, V_MAX_R), threshold);
-		//perform morphological operations on thresholded image to eliminate noise
-		//and emphasize the filtered object(s)
-		if (useMorphOps)
-			morphOps(threshold);
-		//pass in thresholded frame to our object tracking function
-		//this function will return the x and y coordinates of the
-		//filtered object
-		if (trackObjects)
-			trackFilteredObject(x, y, threshold, cameraFeed);
-		if(x!=x_R){
-			bzero(buffer,256);
-			//sprintf(buffer,"fslsrs");
-			verificare();
-			if(miscare() == 1)
-				strcpy(buffer_global, buffer);
-			else
-				printf("Atentie! Foarte aproape de margine!\n");
-			//sprintf(buffer, buffer_global);
-			printf("buffer: %s\n",buffer);
-			n=write(sockfd,buffer,strlen(buffer));
-			if(n<0)
-			  printf("writing to socket");
-		}
-		x_R=x;
-		y_R=y;    
+     if(cameraFeed.empty())
+       return 1;
+     else
+     {
+      		cvtColor(cameraFeed, HSV, COLOR_BGR2HSV);
+      		//filter HSV image between values and store filtered image to
+      		//threshold matrix
+      		inRange(HSV, Scalar(B_H_MIN, B_S_MIN, B_V_MIN), Scalar(B_H_MAX, B_S_MAX, B_V_MAX), thresholdB);
+          inRange(HSV, Scalar(R_H_MIN, R_S_MIN, R_V_MIN), Scalar(R_H_MAX, R_S_MAX, R_V_MAX), thresholdR);
+          inRange(HSV, Scalar(G_H_MIN, G_S_MIN, G_V_MIN), Scalar(G_H_MAX, G_S_MAX, G_V_MAX), thresholdG);
+        // inRange(HSV, Scalar(H_MIN, S_MIN, V_MIN), Scalar(H_MAX, S_MAX, V_MAX), threshold);
+      		//perform morphological operations on thresholded image to eliminate noise
+      		//and emphasize the filtered object(s)
+      		//if (useMorphOps)
+        	//	morphOps(threshold);
+      		//pass in thresholded frame to our object tracking function
+      		//this function will return the x and y coordinates of the
+      		//filtered object
+      //	if (trackObjects)
+      	//	trackFilteredObject(x, y, threshold, cameraFeed);
       
-		//identificam obiectul albastru - adversarul
-		inRange(HSV, Scalar(H_MIN_B, S_MIN_B, V_MIN_B), Scalar(H_MAX_B, S_MAX_B, V_MAX_B), threshold);
-		//perform morphological operations on thresholded image to eliminate noise
-		//and emphasize the filtered object(s)
-		if (useMorphOps)
-			morphOps(threshold);
-		//pass in thresholded frame to our object tracking function
-		//this function will return the x and y coordinates of the
-		//filtered object
-		if (trackObjects)
-			trackFilteredObject(x, y, threshold, cameraFeed);
-		x_B=x;
-		y_B=y;
-		//show frames
-		imshow(windowName2, threshold);
-		imshow(windowName, cameraFeed);
-		imshow(windowName1, HSV);
-		setMouseCallback("Original Image", on_mouse, &p);
-		//delay 30ms so that screen can refresh.
-		//image will not appear without this waitKey() command
-		waitKey(30);
-	}
+         if (useMorphOps)
+      			morphOps(thresholdB);
+      		if (trackObjects)
+      			trackFilteredObject(x1, y1, thresholdB, cameraFeed);
+            
+         if (useMorphOps)
+      			morphOps(thresholdR);
+      		if (trackObjects)
+      			trackFilteredObject(x2, y2, thresholdR, cameraFeed);
+            
+         if (useMorphOps)
+      			morphOps(thresholdG);
+      		if (trackObjects)
+      			trackFilteredObject(x3, y3, thresholdG, cameraFeed);
+            
+      		//show frames
+          //imshow(windowName2, threshold);
+      		imshow(windowName, cameraFeed);
+      		//imshow(windowName1, HSV);
+      		setMouseCallback("Original Image", on_mouse, &p);
+      		//delay 30ms so that screen can refresh.
+      		//image will not appear without this waitKey() command
+      		waitKey(30);
+	    }
+  }
+
 	return 0;
 }
